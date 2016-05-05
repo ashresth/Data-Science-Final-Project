@@ -749,11 +749,12 @@ test_reviews <- slice(dat, -inTrain$Resample1)
 #We model the data using multinomial logistic regression to predict the star category. We use lasso with cross-validation to chose the parameters.
 x <- as.matrix(train_reviews[,4:17])
 multinomial_lasso <- glmnet(x,y=as.factor(train_reviews$stars),alpha=1,family='multinomial')
-plot(multinomial_lasso,xvar="lambda")
-title(main = "Coefficients at different Log Lambda", cex.main = 1, line = 3)
-#CV to pick penalty
+plot(multinomial_lasso,xvar="lambda", 
+     main = "Coefficients at different Log Lambda", cex.main = 1)
+#CV to pick penalty 
 cv.multinomial.lasso <- cv.glmnet(x,y=train_reviews$stars,alpha=1)
-plot(cv.multinomial.lasso, main="MSE vs Log Lambda")
+plot(cv.multinomial.lasso)
+title(main="MSE vs Log Lambda", cex.main = 1, line = 3)
 best_multinomial_lambda <- cv.multinomial.lasso$lambda.min
 #run with best lambda
 lasso_multinomial_best <-glmnet(x,y=as.factor(train_reviews$stars),alpha=1,family='multinomial',
@@ -782,7 +783,8 @@ plot(linear_lasso,xvar="lambda")
 title(main = "Coefficients at different Log Lambda", cex.main = 1, line = 3)
 #CV to pick lambda
 cv.linear.lasso <- cv.glmnet(x,y=train_reviews$stars,alpha=1)
-plot(cv.linear.lasso, main="MSE vs Log Lambda")
+plot(cv.linear.lasso)
+title(main="MSE vs Log Lambda", cex.main = 1, line = 3)
 best_lambda <- cv.linear.lasso$lambda.min
 #run with best lambda
 lasso_linear_best <-glmnet(x,y=train_reviews$stars,alpha=1, lambda=best_lambda)
