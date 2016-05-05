@@ -742,7 +742,7 @@ test_pred <- predict(lasso_multinomial_best, newx = as.matrix(test_reviews[,4:17
 mean(train_pred == train_reviews$stars)
 tab_train <- table(train_pred, train_reviews$stars)
 conf_train <- confusionMatrix(tab_train)
-conf_rftrain
+conf_train
 #Confusion Matrix on Test Set
 mean(test_pred == test_reviews$stars)
 tab_test <- table(test_pred, test_reviews$stars)
@@ -1123,6 +1123,7 @@ for(i in 1:length(world_city)){
     labs(x = "Average Local Star", y = "Average Tourist Star", 
          title = paste("Locals vs. Tourist ratings by business in", world_city[i])))
 }
+
 
 ```
 
