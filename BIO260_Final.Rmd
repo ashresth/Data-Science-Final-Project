@@ -1,5 +1,5 @@
 ---
-title: "Generating Yelp Recommendations"
+title: "Predicting Yelp Reviews for Travelers"
 author: "Akritee Shrestha, Sam Tideman"
 date: "May 4, 2016"
 output: html_document
@@ -23,6 +23,31 @@ library(doMC)
 library(class)
 setwd("~/Documents/HSPH Spring 2016/BIO 260 Data Science/FinalProject/BIO260_Project")
 ```
+
+## Overview and Motivation
+
+Yelp gets 142 million unique visitors a month and contains 2.1 million claimed local businesses as of the first quarter of 2015 (http://expandedramblings.com/index.php/yelp-statistics/). The primary way consumers utilize Yelp is by filtering through the categories, price range and ratings and reading through the recommended reviews to decide whether they would like try a new business. Relying on this crowd-based recommendation system might be particularly useful when traveling to a new city. One of the primary interest for travelers to a city might be the local dining options. As an increasing number of businesses and consumers rely on Yelp, sifting through hundreds of reviews to find a good restaurant can be time consuming. We thought it might be useful to have a Netflix-like recommendation system in Yelp that can analyze a user's history of businesses they have frequented or reviews that they have posted from their home city and predict what restaurants they are likely to visit if they traveled to a new city. 
+
+## Related Work
+
+While websites like Netflix and Amazon gives recommendations to users based on their past behavior, Yelp does not. Motivated by how well we could predict Netflix ratings using machine learning techniques, we wanted to see if there are certain challenges in predicting people's food choices. We also wanted to examine whether this is complicated by people's preferences changing when they travel.
+
+##Initial Questions
+
+Our scientific goals are to learn which machine learning approach, or combination of approaches, are most effective for the task. We would like to infer the rating a user would give to a restaurant based on the user’s history. The higher the rating, the more likely the user is to like the restaurant. A particular inferential challenge of this project will be handling diverse data with unequal amounts of information on each subject. The specific quantity and quality of information will vary greatly from user to user and we want to learn how to explore various scientific solutions to this challenge.
+
+We hope to learn how home city yelp histories are related to yelp activity in travel destination cities. This will require developing a judgment based classification system of assigning users to a home city since our dataset does not have this specific information. Some questions we want to consider are - How are travel dining preferences different from home city preferences? Are certain restaurants more popular with visitors than with locals (or vice versa)? Does a city have a signature genre of restaurants? How do the strengths of connections among the cities in the data set differ? Our goal is to address these questions and synthesize these insights into a rank based recommendation system for which restaurants a yelp user would most enjoy in a new travel destination city. 
+
+
+## Data
+
+We got the data directly from the Yelp website by entering the Yelp Dataset Challenge (https://www.yelp.com/dataset_challenge)
+It has data on businesses in 6 cities in the US (Pittsburgh, Charlotte, Urbana-Champaign, Phoenix, Las Vegas and Madison), 2 cities in Canada (Montreal and Waterloo) and 1 city each in Germany (Karlsruhe) and U.K. (Edinburgh). This includes data on 2.2M reviews and 591K tips by 552K users for 77K businesses.
+
+While most of the raw data is available on the link above, we also have some processed data on this Google Drive link (https://drive.google.com/file/d/0Bz4Yx2vJtaBVQjlRSVV6X0dITlk/view?usp=sharing). Some of the files were too large to share on GitHub.
+
+
+## Analysis
 
 We first want to load the datasets for businesses, users and reviews.
 
@@ -724,8 +749,8 @@ test_reviews <- slice(dat, -inTrain$Resample1)
 #We model the data using multinomial logistic regression to predict the star category. We use lasso with cross-validation to chose the parameters.
 x <- as.matrix(train_reviews[,4:17])
 multinomial_lasso <- glmnet(x,y=as.factor(train_reviews$stars),alpha=1,family='multinomial')
-plot(multinomial_lasso,xvar="lambda", main="Coefficients versus Log Lambda")
-grid()
+plot(multinomial_lasso,xvar="lambda")
+title(main = "Coefficients at different Log Lambda", cex.main = 1, line = 3)
 #CV to pick penalty
 cv.multinomial.lasso <- cv.glmnet(x,y=train_reviews$stars,alpha=1)
 plot(cv.multinomial.lasso, main="MSE vs Log Lambda")
@@ -753,8 +778,8 @@ conf_test
 ##### Linear Regression with LASSO penalty
 ```{r}
 linear_lasso <- glmnet(x,y=train_reviews$stars,alpha=1)
-plot(linear_lasso,xvar="lambda", main="Coefficients versus Log Lambda")
-grid()
+plot(linear_lasso,xvar="lambda")
+title(main = "Coefficients at different Log Lambda", cex.main = 1, line = 3)
 #CV to pick lambda
 cv.linear.lasso <- cv.glmnet(x,y=train_reviews$stars,alpha=1)
 plot(cv.linear.lasso, main="MSE vs Log Lambda")
@@ -779,7 +804,7 @@ conf_test
 ```
 
 ##### KNN
-```{r}
+```{r, warning=FALSE, message=FALSE}
 #Sam's KNN function
 split_data <- function(data,prop) {
   n <- nrow(data)
@@ -887,7 +912,7 @@ conf_rftest
 
 This shows it's much easier to identify a rating of 5 to use for highly recommended restaurants than it is to predict the exact star rating.
 
-### Visualizations
+## Visualizations
 
 ##### Create latitude and longitude attributes for the yelp cities
 
