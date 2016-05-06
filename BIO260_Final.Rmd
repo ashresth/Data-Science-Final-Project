@@ -295,7 +295,6 @@ best_lambda_l <- cv.lasso$lambda.min
 #run LASSO with the best_lambda
 tourist.lasso_best<- glmnet(x_train, as.factor(train_set_tl$tourist),
                     alpha=1,family='binomial', lambda = best_lambda_l)
-tourist.lasso_best$beta
 
 #test accuracy on train and test set
 lasso_train_prob <- round(predict(tourist.lasso_best, x_train, type = "response"))
@@ -316,7 +315,26 @@ conf_matrix$overall["Accuracy"]
 The accuracies are similar for the two methods and the LASSO shrinks most of the coefficients that were non-significant from the GLM.
 We decided to got with the GLM model without the LASSO penalty based on the slightly higher accuracy in the test dataset.
 
-To make prediction on the full dataset, we use conservative thresholds on the results of the regression as well. We decided to only classify as tourists if the predicted probability of being a tourist is greater than 0.6 and classify as locals if the predicted probability is less than 0.4.
+However, we can use the coefficients from the LASSO to see what predictors were significant in identifying tourists vs locals. Since LASSO normalizes the data, the absoute magnitude of the coefficients gives an idea of importance of the variables.
+
+```{r, warning= FALSE}
+#Coefficients of lasso betas
+lasso_betas <- data.frame(cbind(row.names(as.matrix(tourist.lasso_best$beta)),
+                                as.matrix(tourist.lasso_best$beta))) %>%
+  filter(s0 !=0) %>% rename(cat = V1) %>% rename(val = s0) %>% 
+  mutate(val = as.numeric(as.character(val)), cat = as.factor(cat))
+lasso_betas %>% 
+  mutate(local = as.factor(ifelse(val>0,0,1))) %>% 
+  ggplot(aes(x=reorder(cat,val),y=val)) + geom_bar(stat="identity", aes(fill=local)) + 
+  coord_flip() + 
+  labs(y="Coefficient Value", 
+       x="Business Category",title="Business Category Review Count Predictors for classifying locals and tourists")
+```
+
+Here we can see that reviewing categories like Hotels and Travels make a user more likely to be tourist whereas categories like HOme Servides and Pets make them more likely to be a local.
+
+
+Going back to the GLM results, to make prediction on the full dataset, we use conservative thresholds on the results of the regression as well. We decided to only classify as tourists if the predicted probability of being a tourist is greater than 0.6 and classify as locals if the predicted probability is less than 0.4.
 
 ##### Predictions on Full Dataset
 ```{r}
@@ -339,6 +357,9 @@ grouped_users_pred %>%
 #check percent of reviews in the city and the total number of reviews for users in each category
 grouped_users_pred %>% group_by(pred_tourist) %>% summarise(percent_city = mean(percent_city),
                                                             review_total = mean(review_total))
+
+#plot histogram
+grouped_users_pred %>% ggplot(aes(x=pred_tourist_prob)) + geom_histogram() + scale_y_sqrt() + geom_vline(xintercept=.4,colour="red",size=1) + geom_vline(xintercept=.6,colour="red",size=1) + labs(x = "Predicted Probability of being a tourist")
 ```
 
 ##### Caveats of the Tourist Classification Model
@@ -985,6 +1006,8 @@ Here we examine the number of yelpers in our dataset traveling within the US. Ea
 
 ```{r}
 dev.off()
+write.csv(us_city_color, "us_city_color.csv")
+write.csv(us_travel, "us_travel.csv")
 for(i in 1:length(us_city)){
   par(mar=c(1,1,1,1))
   map <- map("state", col="mintcream", fill=TRUE, bg="white", lwd=0.05)
@@ -1091,6 +1114,30 @@ for(i in 1:length(world_city)){
 ```
 
 Again, we cannot detect specific areas of the cities tourists might prefer.
+
+##### Mapping Number of Tourists Dining at Each Business by City
+
+In this map, the gradient of the circles represent the number of tourists dining at each business. The darker the circles, the more the number of tourists.
+
+```{r}
+all_map9 <- left_join(all_map3, select(all_map4, business_id, longitude, latitude, business_city), 
+                      by = "business_id") 
+all_map9 <- all_map9 %>% filter(tourist == TRUE & tourist_review_count > 10) %>% unique
+plt2 <- colorRampPalette(c("#f2f2f2", "red"))
+colors2 <- plt2(sqrt(max(all_map9$tourist_review_count)))
+c_index <- sqrt(all_map9$tourist_review_count)
+colors3 <- colors2[c_index]
+all_map9 <- cbind(all_map9, colors3)
+
+for(i in 1:length(world_city)){
+  dest_city <- all_map9 %>% filter(business_city == world_city[i])
+  new_map <- leaflet(data = dest_city) %>% 
+  addTiles(urlTemplate = "http://{s}.tiles.wmflabs.org/bw-mapnik/{z}/{x}/{y}.png", 
+           attribution = '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>') %>%
+  addCircles(~longitude, ~latitude, color = ~colors3, opacity = 1)
+  print(new_map)
+}
+```
 
 ##### Mapping Average Locals vs Tourist Rating for Top 25 Food Categories
 
