@@ -44,7 +44,7 @@ We hope to learn how home city yelp histories are related to yelp activity in tr
 We got the data directly from the Yelp website by entering the Yelp Dataset Challenge (https://www.yelp.com/dataset_challenge)
 It has data on businesses in 6 cities in the US (Pittsburgh, Charlotte, Urbana-Champaign, Phoenix, Las Vegas and Madison), 2 cities in Canada (Montreal and Waterloo) and 1 city each in Germany (Karlsruhe) and U.K. (Edinburgh). This includes data on 2.2M reviews and 591K tips by 552K users for 77K businesses.
 
-While most of the raw data is available on the link above, we also have some processed data on this Google Drive link (https://drive.google.com/file/d/0Bz4Yx2vJtaBVQjlRSVV6X0dITlk/view?usp=sharing). Some of the files were too large to share on GitHub.
+While most of the raw data is available on the link above, we also have some processed data on this Google Drive link (https://drive.google.com/drive/u/1/folders/0Bz4Yx2vJtaBVYzVkSVh4R21hX1U). Some of the files were too large to share on GitHub.
 
 
 ## Analysis
