@@ -904,20 +904,21 @@ We get similar accuracies using the multinomial logistic with the random forest 
 The accuracy is not too high with any of our models. As a compromise, we decided to have our response be whether we would recommend the business or not. We decided to recommend the business only if the number of stars is 5 and fit a new model with the random forest.
 
 ```{r}
-train_reviews_rf <- train_reviews_rf %>% mutate(recommend = ifelse(stars>4, 1,0))
+train_reviews_r <- train_reviews_rf %>% mutate(recommend = ifelse(stars>4, 1,0))
+train_reviews_r <- train_reviews_r[-1]
 train_reviews <- train_reviews %>% mutate(recommend = ifelse(stars>4, 1,0))
 test_reviews <- test_reviews %>% mutate(recommend = ifelse(stars>4, 1,0))
 #CV to pick mtry
 ctrl2 = trainControl(method="cv", number=10)
 trf2 = train(factor(recommend)~., 
-            data=train_reviews_rf, 
+            data=train_reviews_r, 
             method="rf", 
             metric="Accuracy",
             trControl=ctrl2,
             allowParallel=TRUE)
 print(trf2)
 #run Random Forest
-rf_fit2 <- randomForest(factor(recommend)~., data=train_reviews_rf, ntree = 100, mtry = 2)
+rf_fit2 <- randomForest(factor(recommend)~., data=train_reviews_r, ntree = 100, mtry = 2)
 #predict on train and test set
 f_hat_rf <- predict(rf_fit2, newdata = train_reviews, type="response")
 f_hat_rf2 <- predict(rf_fit2, newdata = test_reviews, type="response")
@@ -933,7 +934,109 @@ conf_rftest <- confusionMatrix(tab_rftest)
 conf_rftest
 ```
 
-This shows it's much easier to identify a rating of 5 to use for highly recommended restaurants than it is to predict the exact star rating.
+##### Binomial Recommendation Prediction with LASSO penalty
+```{r}
+#We model the data using multinomial logistic regression to predict the star category. We use lasso with cross-validation to chose the parameters.
+x <- as.matrix(train_reviews_r[,1:14])
+binomial_lasso <- glmnet(x,y=as.factor(train_reviews_r$recommend),alpha=1,family='binomial')
+plot(binomial_lasso,xvar="lambda", 
+     main = "Coefficients at different Log Lambda", cex.main = 1)
+#CV to pick penalty 
+cv.binomial_lasso <- cv.glmnet(x,y=train_reviews_r$recommend,alpha=1)
+plot(cv.binomial_lasso)
+title(main="MSE vs Log Lambda", cex.main = 1, line = 3)
+best_binomial_lambda <- cv.binomial_lasso$lambda.min
+#run with best lambda
+lasso_binomial_best <-glmnet(x,y=as.factor(train_reviews_r$recommend),alpha=1,family='binomial',
+                                lambda=best_binomial_lambda)
+#betas
+lasso_binomial_best$beta
+#predictions
+train_pred <- predict(lasso_binomial_best, newx = as.matrix(train_reviews[,4:17]), type = "class")
+test_pred <- predict(lasso_binomial_best, newx = as.matrix(test_reviews[,4:17]), type = "class")
+#Confusion Matrix on Train Set
+mean(train_pred == train_reviews$recommend)
+tab_train <- table(train_pred, train_reviews$recommend)
+conf_train <- confusionMatrix(tab_train)
+conf_train
+#Confusion Matrix on Test Set
+mean(test_pred == test_reviews$recommend)
+tab_test <- table(test_pred, test_reviews$recommend)
+conf_test <- confusionMatrix(tab_test)
+conf_test
+```
+
+
+##### Linear Regression with LASSO penalty
+```{r}
+linear_lasso <- glmnet(x,y=train_reviews_r$recommend,alpha=1)
+plot(linear_lasso,xvar="lambda")
+title(main = "Coefficients at different Log Lambda", cex.main = 1, line = 3)
+#CV to pick lambda
+cv.linear.lasso <- cv.glmnet(x,y=train_reviews$recommend,alpha=1)
+plot(cv.linear.lasso)
+title(main="MSE vs Log Lambda", cex.main = 1, line = 3)
+best_lambda <- cv.linear.lasso$lambda.min
+#run with best lambda
+lasso_linear_best <-glmnet(x,y=train_reviews_r$recommend,alpha=1, lambda=best_lambda)
+#betas
+lasso_linear_best$beta
+#predictions
+train_pred <- predict(lasso_linear_best, newx = as.matrix(train_reviews[,4:17]), type = "response")
+test_pred <- predict(lasso_linear_best, newx = as.matrix(test_reviews[,4:17]), type = "response")
+#Confusion Matrix on Train Set
+mean(round(train_pred) == train_reviews$recommend)
+tab_train <- table(round(train_pred), train_reviews$recommend)
+conf_train <- confusionMatrix(tab_train)
+conf_train
+#Confusion Matrix on Test Set
+mean(round(test_pred) == test_reviews$recommend)
+tab_test <- table(round(test_pred), test_reviews$recommend)
+conf_test <- confusionMatrix(tab_test)
+conf_test
+```
+
+
+##### KNN
+```{r, warning=FALSE, message=FALSE}
+#Sam's KNN function
+split_data <- function(data,prop) {
+  n <- nrow(data)
+  rands <- rnorm(n)
+  training <- rands < quantile(rands,prop)
+  return(list("training" = data[training,], "test" = data[training==FALSE,]))
+}
+
+train_sam <- function(it,prop,test,training,inputs,outcome,k) {
+  accuracy <- NULL
+  for(i in 1:it) {
+    cross_val_train = split_data(training,prop)
+    predictions <- knn(cross_val_train$training[,inputs],cross_val_train$test[,inputs],cross_val_train$training[[outcome]],k)
+    accuracy <- c(accuracy,mean(as.numeric(predictions)==as.numeric(test[[outcome]])))
+  }
+  return(accuracy)
+}
+
+knn_master <- function(it,prop,test,training,inputs,outcome,min_k,max_k){
+  ks <- seq(min_k,max_k,50)
+  accuracy <- rep(0,length(ks))
+  for(i in 1:length(ks)) {
+    accuracy_k <- train_sam(it,prop,test,training,inputs,outcome,ks[i])
+    accuracy[i] <- mean(accuracy_k)
+  }
+  return(cbind(ks,accuracy))
+}
+#CV to check best k
+knn_test <- knn_master(10,.1,test_reviews,train_reviews_r,names(train_reviews_r)[c(1,3,5,7,9)],"recommend",1,251)
+
+data.frame(knn_test) %>% ggplot(aes(x=ks, y= accuracy)) + geom_line() + labs(x="# K in KNN",y="Cross-validated accuracy on train")
+knn_prediction <- knn(train_reviews[,names(train_reviews)[c(4,6,8,10,12)]],test_reviews[,names(test_reviews)[c(4,6,8,10,12)]],train_reviews[["recommend"]],200)
+
+#Accuracy
+mean(round(as.numeric(knn_prediction))==as.numeric(test_reviews$recommend))
+```
+
+This shows it's much easier to identify a rating of 5 to use for highly recommended restaurants than it is to predict the exact star rating. Any of the models except for KNN predicted the recommendation with moderate accuracy.
 
 ## Visualizations
 
@@ -1077,10 +1180,10 @@ all_map4 <- full_join(all_map2, all_map3) %>%
 ##### Mapping locations dined by Tourists vs Locals in each City
 
 ```{r}
-world_city <- c("Pittsburgh","Charlotte", "Madison", "Urbana-Champaign", "Phoenix", "Las Vegas","Montreal", 
-               "Waterloo", "Edinburgh","Karlsruhe")
+world_city <- c("Pittsburgh","Charlotte", "Madison", "Urbana-Champaign", "Phoenix", "Las Vegas","Montreal", "Waterloo", "Edinburgh","Karlsruhe")
 #for each city map the locations reviewed by tourists vs locals, blue tourists, yellow locals
 for(i in 1:length(world_city)){
+  i = 6
   dest_city <- all_map4 %>% filter(business_city == world_city[i])
   new_map <-leaflet(data = dest_city) %>% 
   addTiles(urlTemplate = "http://{s}.tiles.wmflabs.org/bw-mapnik/{z}/{x}/{y}.png", 
