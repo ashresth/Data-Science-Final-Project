@@ -21,6 +21,7 @@ library(randomForest)
 library(stringr)
 library(doMC)
 library(class)
+library(knitr)
 setwd("~/Documents/HSPH Spring 2016/BIO 260 Data Science/FinalProject/BIO260_Project")
 ```
 
@@ -733,20 +734,13 @@ dat <- rename(dat, user_city = yelp_city.y)
 
 
 dat <- dat %>%
-  mutate(business_stars = ifelse(is.na(business_stars),mu,business_stars)) %>%
-  mutate(user_local_stars = ifelse(is.na(user_local_stars),mu,user_local_stars)) %>%
-  mutate(tourist_stars = ifelse(is.na(tourist_stars),business_stars,user_local_stars)) %>%
-  mutate(user_category_stars = ifelse(is.na(user_category_stars),user_local_stars,user_category_stars)) %>%
-  mutate(user_ambience_stars = ifelse(is.na(user_ambience_stars),user_local_stars,user_ambience_stars)) %>%
-  mutate(user_good_for_stars = ifelse(is.na(user_good_for_stars),user_local_stars,user_good_for_stars)) %>%
-  mutate(user_price_stars = ifelse(is.na(user_price_stars),user_local_stars,user_price_stars)) %>%
-  mutate(user_local_n = ifelse(is.na(user_local_n),0,user_local_n)) %>%
-  mutate(t_n = ifelse(is.na(t_n),0,t_n)) %>%
-  mutate(b_n = ifelse(is.na(b_n),0,b_n)) %>%
-  mutate(user_cat_n = ifelse(is.na(user_cat_n),0,user_cat_n)) %>%
-  mutate(user_ambience_n = ifelse(is.na(user_ambience_n),0,user_ambience_n)) %>%
-  mutate(user_good_for_n = ifelse(is.na(user_good_for_n),0,user_good_for_n)) %>%
-  mutate(user_price_n = ifelse(is.na(user_price_n),0,user_price_n))
+  mutate(business_stars = ifelse(0 ==business_stars,mu,business_stars)) %>%
+  mutate(user_local_stars = ifelse(0 ==user_local_stars,mu,user_local_stars)) %>%
+  mutate(tourist_stars = ifelse(0 ==tourist_stars,business_stars,user_local_stars)) %>%
+  mutate(user_category_stars = ifelse(0 ==user_category_stars,user_local_stars,user_category_stars)) %>%
+  mutate(user_ambience_stars = ifelse(0 ==user_ambience_stars,user_local_stars,user_ambience_stars)) %>%
+  mutate(user_good_for_stars = ifelse(0 ==user_good_for_stars,user_local_stars,user_good_for_stars)) %>%
+  mutate(user_price_stars = ifelse(0 ==user_price_stars,user_local_stars,user_price_stars)) 
 
 write_csv(dat, "final_dataset.csv")
 ```
@@ -903,40 +897,16 @@ We get similar accuracies using the multinomial logistic with the random forest 
 
 The accuracy is not too high with any of our models. As a compromise, we decided to have our response be whether we would recommend the business or not. We decided to recommend the business only if the number of stars is 5 and fit a new model with the random forest.
 
+##### Binomial Recommendation Prediction with LASSO penalty
 ```{r}
+#create new train set that has a column for whether or not the stars is 5
+#remove stars
 train_reviews_r <- train_reviews_rf %>% mutate(recommend = ifelse(stars>4, 1,0))
 train_reviews_r <- train_reviews_r[-1]
 train_reviews <- train_reviews %>% mutate(recommend = ifelse(stars>4, 1,0))
 test_reviews <- test_reviews %>% mutate(recommend = ifelse(stars>4, 1,0))
-#CV to pick mtry
-ctrl2 = trainControl(method="cv", number=10)
-trf2 = train(factor(recommend)~., 
-            data=train_reviews_r, 
-            method="rf", 
-            metric="Accuracy",
-            trControl=ctrl2,
-            allowParallel=TRUE)
-print(trf2)
-#run Random Forest
-rf_fit2 <- randomForest(factor(recommend)~., data=train_reviews_r, ntree = 100, mtry = 2)
-#predict on train and test set
-f_hat_rf <- predict(rf_fit2, newdata = train_reviews, type="response")
-f_hat_rf2 <- predict(rf_fit2, newdata = test_reviews, type="response")
-#Confusion Matrix on Train Set
-mean(f_hat_rf == train_reviews$recommend)
-tab_rftrain <- table(f_hat_rf, train_reviews$recommend)
-conf_rftrain <- confusionMatrix(tab_rftrain)
-conf_rftrain
-#Confusion Matrix on Test Set
-mean(f_hat_rf2 == test_reviews$recommend)
-tab_rftest <- table(f_hat_rf2, test_reviews$recommend)
-conf_rftest <- confusionMatrix(tab_rftest)
-conf_rftest
-```
 
-##### Binomial Recommendation Prediction with LASSO penalty
-```{r}
-#We model the data using multinomial logistic regression to predict the star category. We use lasso with cross-validation to chose the parameters.
+#We model the data using multinomial logistic regression to predict whether the rating is 5 or not. We use lasso with cross-validation to chose the parameters.
 x <- as.matrix(train_reviews_r[,1:14])
 binomial_lasso <- glmnet(x,y=as.factor(train_reviews_r$recommend),alpha=1,family='binomial')
 plot(binomial_lasso,xvar="lambda", 
@@ -967,7 +937,7 @@ conf_test
 ```
 
 
-##### Linear Regression with LASSO penalty
+##### Linear Regression for Recommendation with LASSO penalty
 ```{r}
 linear_lasso <- glmnet(x,y=train_reviews_r$recommend,alpha=1)
 plot(linear_lasso,xvar="lambda")
@@ -996,8 +966,7 @@ conf_test <- confusionMatrix(tab_test)
 conf_test
 ```
 
-
-##### KNN
+##### Binomial Recommendation Prediction with KNN
 ```{r, warning=FALSE, message=FALSE}
 #Sam's KNN function
 split_data <- function(data,prop) {
@@ -1035,6 +1004,46 @@ knn_prediction <- knn(train_reviews[,names(train_reviews)[c(4,6,8,10,12)]],test_
 #Accuracy
 mean(round(as.numeric(knn_prediction))==as.numeric(test_reviews$recommend))
 ```
+
+
+##### Binomial Recommendation Prediction with Random Forest
+```{r}
+#CV to pick mtry
+ctrl2 = trainControl(method="cv", number=10)
+trf2 = train(factor(recommend)~., 
+            data=train_reviews_r, 
+            method="rf", 
+            metric="Accuracy",
+            trControl=ctrl2,
+            allowParallel=TRUE)
+print(trf2)
+#run Random Forest
+rf_fit2 <- randomForest(factor(recommend)~., data=train_reviews_r, ntree = 100, mtry = 8)
+#predict on train and test set
+f_hat_rf <- predict(rf_fit2, newdata = train_reviews, type="response")
+f_hat_rf2 <- predict(rf_fit2, newdata = test_reviews, type="response")
+#Confusion Matrix on Train Set
+mean(f_hat_rf == train_reviews$recommend)
+tab_rftrain <- table(f_hat_rf, train_reviews$recommend)
+conf_rftrain <- confusionMatrix(tab_rftrain)
+conf_rftrain
+#Confusion Matrix on Test Set
+mean(f_hat_rf2 == test_reviews$recommend)
+tab_rftest <- table(f_hat_rf2, test_reviews$recommend)
+conf_rftest <- confusionMatrix(tab_rftest)
+conf_rftest
+```
+
+###### Variable Importance by Random Forest
+
+```{r}
+variable_importance <- importance(rf_fit2) 
+tmp <- data_frame(feature = rownames(variable_importance),
+                  Gini = variable_importance[,1]) %>%
+  arrange(desc(Gini))
+kable(tmp[1:10,])
+```
+
 
 This shows it's much easier to identify a rating of 5 to use for highly recommended restaurants than it is to predict the exact star rating. Any of the models except for KNN predicted the recommendation with moderate accuracy.
 
